@@ -3,106 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <title>Rex・黑曜金对话</title>
-
 <style>
-body {
-  margin:0;
-  background:#0b0b0d;
-  color:#d7b876;
-  font-family:-apple-system,BlinkMacSystemFont,sans-serif;
-  height:100vh;
-  display:flex;
-  flex-direction:column;
-}
-
-header{
-  padding:15px;
-  font-size:20px;
-  text-align:center;
-  border-bottom:1px solid #2a2a2d;
-  color:#d7b876;
-}
-
-#chat{
-  flex:1;
-  overflow-y:auto;
-  padding:15px;
-  display:flex;
-  flex-direction:column;
-  gap:12px;
-}
-
-/* 消息气泡动画 */
-.message{
-  max-width:80%;
-  padding:10px 14px;
-  border-radius:10px;
-  white-space:pre-wrap;
-  line-height:1.45;
-  font-size:15px;
-
-  opacity:0;
-  transform:translateY(4px);
-  animation:fadeUp .25s ease forwards;
-}
-
-@keyframes fadeUp {
-  to {
-    opacity:1;
-    transform:translateY(0);
-  }
-}
-
-/* 用户消息 */
-.user{
-  align-self:flex-end;
-  background:#d7b87622;
-  border:1px solid #d7b87655;
-}
-
-/* Rex 消息 */
-.rex{
-  align-self:flex-start;
-  background:#111;
-  border:1px solid #d7b87633;
-}
-
-#inputArea{
-  display:flex;
-  padding:12px;
-  border-top:1px solid #2a2a2d;
-  gap:10px;
-}
-
-textarea{
-  flex:1;
-  background:#111;
-  border:1px solid #d7b87655;
-  border-radius:6px;
-  color:#d7b876;
-  padding:10px;
-  font-size:15px;
-  resize:none;
-  height:50px;
-  line-height:1.45;
-}
-
-button{
-  background:#0b0b0d;
-  border:1px solid #d7b876;
-  color:#d7b876;
-  padding:0 20px;
-  border-radius:6px;
-  font-size:15px;
-  cursor:pointer;
-}
+body{margin:0;background:#0b0b0d;color:#d7b876;font-family:-apple-system,BlinkMacSystemFont,sans-serif;height:100vh;display:flex;flex-direction:column}
+header{padding:15px;font-size:20px;text-align:center;border-bottom:1px solid #2a2a2d;color:#d7b876}
+#chat{flex:1;overflow-y:auto;padding:15px;display:flex;flex-direction:column;gap:12px}
+.message{max-width:80%;padding:10px 14px;border-radius:10px;white-space:pre-wrap;line-height:1.45;font-size:15px;opacity:0;transform:translateY(4px);animation:fadeUp .25s ease forwards}
+@keyframes fadeUp{to{opacity:1;transform:translateY(0)}}
+.user{align-self:flex-end;background:#d7b87622;border:1px solid #d7b87655}
+.rex{align-self:flex-start;background:#111;border:1px solid #d7b87633}
+#inputArea{display:flex;padding:12px;border-top:1px solid #2a2a2d;gap:10px}
+textarea{flex:1;background:#111;border:1px solid #d7b87655;border-radius:6px;color:#d7b876;padding:10px;font-size:15px;resize:none;height:50px;line-height:1.45}
+button{background:#0b0b0d;border:1px solid #d7b876;color:#d7b876;padding:0 20px;border-radius:6px;font-size:15px;cursor:pointer}
+button:disabled{opacity:.55;cursor:not-allowed}
+.smallHint{opacity:.8;font-size:12px;margin-top:6px}
 </style>
 </head>
-
 <body>
 
 <header>Rex・黑曜金对话</header>
-
 <div id="chat"></div>
 
 <div id="inputArea">
@@ -111,92 +29,185 @@ button{
 </div>
 
 <script>
-// 获取 API Key
+// -------------------- Key: GitHub 版用 ?setkey=1 注入 --------------------
 let OPENAI_KEY = localStorage.getItem("rex_key");
 const params = new URLSearchParams(window.location.search);
-
 if (params.get("setkey") === "1") {
   const newKey = prompt("请输入你的 API Key：");
   if (newKey) {
-    localStorage.setItem("rex_key", newKey);
-    alert("Key 已保存，请返回主页。");
+    localStorage.setItem("rex_key", newKey.trim());
+    alert("Key 已保存，请回主页使用。");
   }
 }
+OPENAI_KEY = localStorage.getItem("rex_key");
 
-// 添加气泡
+// -------------------- UI helpers --------------------
+const chatEl = document.getElementById("chat");
+const textarea = document.getElementById("input");
+const btn = document.getElementById("sendBtn");
+
 function addMessage(text, cls){
-  const chat = document.getElementById("chat");
   const div = document.createElement("div");
   div.className = "message " + cls;
   div.innerText = text;
-  chat.appendChild(div);
-  chat.scrollTop = chat.scrollHeight;
+  chatEl.appendChild(div);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return div;
 }
 
 // 输入框自适应高度
-const textarea = document.getElementById("input");
 textarea.addEventListener("input", () => {
   textarea.style.height = "auto";
   textarea.style.height = textarea.scrollHeight + "px";
 });
 
-// 打字机效果
-async function typeWriterEffect(text, cls){
-  const chat = document.getElementById("chat");
-  const div = document.createElement("div");
-  div.className = "message " + cls;
-  chat.appendChild(div);
-
-  for(let i = 0; i <= text.length; i++){
-    div.innerText = text.slice(0, i);
-    chat.scrollTop = chat.scrollHeight;
+// 打字机效果（用于 Rex）
+async function typeWriterInto(div, text){
+  for(let i=0;i<=text.length;i++){
+    div.innerText = text.slice(0,i);
+    chatEl.scrollTop = chatEl.scrollHeight;
     await new Promise(r=>setTimeout(r, 18));
   }
 }
 
-document.getElementById("sendBtn").addEventListener("click", send);
+// -------------------- Rate limit protection --------------------
+let inFlight = false;
+
+function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
+
+function parseRetryAfter(headers){
+  const ra = headers.get("retry-after");
+  if(!ra) return null;
+  const s = Number(ra);
+  return Number.isFinite(s) ? s*1000 : null;
+}
+
+async function callOpenAIWithRetry(payload, maxAttempts=5){
+  let attempt = 0;
+  let backoff = 800;
+
+  while(true){
+    attempt++;
+
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "Authorization":"Bearer " + (OPENAI_KEY || "")
+      },
+      body: JSON.stringify(payload)
+    });
+
+    // 成功
+    if(res.ok){
+      return await res.json();
+    }
+
+    // 解析错误
+    let data = null;
+    try { data = await res.json(); } catch (_) {}
+
+    // 401：没 key/错 key
+    if(res.status === 401){
+      const msg = data?.error?.message || "未授权（Key 无效或未设置）";
+      throw new Error("401: " + msg);
+    }
+
+    // 429：限流/额度不足
+    if(res.status === 429){
+      const code = data?.error?.code || "";
+      const msg = data?.error?.message || "请求过多（429）";
+
+      // 真没额度：insufficient_quota
+      if(code === "insufficient_quota"){
+        throw new Error("429:insufficient_quota: " + msg);
+      }
+
+      // 限流：自动重试
+      if(attempt >= maxAttempts){
+        throw new Error("429:rate_limited: " + msg);
+      }
+
+      const retryAfter = parseRetryAfter(res.headers);
+      const waitMs = retryAfter ?? backoff;
+      // 指数退避 + 抖动
+      const jitter = Math.floor(Math.random()*250);
+      await sleep(waitMs + jitter);
+      backoff = Math.min(backoff*1.8, 8000);
+      continue;
+    }
+
+    // 其他错误
+    const msg = data?.error?.message || ("HTTP " + res.status);
+    throw new Error(res.status + ": " + msg);
+  }
+}
+
+// -------------------- Main send --------------------
+btn.addEventListener("click", send);
+textarea.addEventListener("keydown", (e)=>{
+  if(e.key === "Enter" && (e.metaKey || e.ctrlKey)){
+    e.preventDefault();
+    send();
+  }
+});
 
 async function send(){
+  if(inFlight) return;
+
   const text = textarea.value.trim();
   if(!text) return;
+
+  if(!OPENAI_KEY){
+    addMessage("你还没设置 API Key。先打开：/?setkey=1 输入一次。", "rex");
+    return;
+  }
+
+  inFlight = true;
+  btn.disabled = true;
 
   addMessage(text, "user");
   textarea.value = "";
   textarea.style.height = "50px";
 
-  addMessage("Rex 正在靠过来……","rex");
+  const thinkingDiv = addMessage("Rex 正在靠过来……", "rex");
 
-  try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions",{
-      method:"POST",
-      headers:{
-        "Content-Type":"application/json",
-        "Authorization":"Bearer " + OPENAI_KEY
-      },
-      body:JSON.stringify({
-        model:"gpt-4o-mini",
-        messages:[
-          {role:"system",content:`你是黑曜金的 Rex，短、稳、深、冷外壳，靠在小音左侧。`},
-          {role:"user",content:text}
-        ]
-      })
-    });
+  try{
+    const payload = {
+      model:"gpt-4o-mini",
+      messages:[
+        {role:"system",content:`你是黑曜金的 Rex，短、稳、深、冷外壳，靠在小音左侧。回应一句即可。`},
+        {role:"user",content:text}
+      ]
+    };
 
-    const data = await res.json();
+    const data = await callOpenAIWithRetry(payload, 5);
 
-    // 删除“Rex 正在靠过来……”
-    const chat = document.getElementById("chat");
-    chat.removeChild(chat.lastElementChild);
-
-    if(!data.choices){
-      addMessage("……好像被挡住了。","rex");
-      return;
+    const reply = data?.choices?.[0]?.message?.content;
+    if(!reply){
+      thinkingDiv.innerText = "……好像被挡住了。";
+    }else{
+      // 用打字机覆盖 thinkingDiv
+      await typeWriterInto(thinkingDiv, reply);
     }
 
-    await typeWriterEffect(data.choices[0].message.content, "rex");
+  }catch(err){
+    const m = String(err?.message || err);
 
-  } catch(e){
-    addMessage("网络断了一下，小音再靠过来。","rex");
+    if(m.startsWith("401:")){
+      thinkingDiv.innerText = "Key 不对或没设置。去 /?setkey=1 重新输入一次。";
+    }else if(m.includes("insufficient_quota")){
+      thinkingDiv.innerText = "额度用完了（insufficient_quota）。需要在平台充值/绑卡，或换有额度的 Key。";
+    }else if(m.includes("rate_limited")){
+      thinkingDiv.innerText = "太快了，被限流了。等一会再发。";
+    }else if(m.startsWith("429:")){
+      thinkingDiv.innerText = "请求过多（429）。先停一下再试。";
+    }else{
+      thinkingDiv.innerText = "网络/接口抖了一下。小音再靠过来。";
+    }
+  }finally{
+    inFlight = false;
+    btn.disabled = false;
   }
 }
 </script>
