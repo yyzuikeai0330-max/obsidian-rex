@@ -2,107 +2,174 @@
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
-<title>Rex・黑曜金日记</title>
+<title>Rex・黑曜金对话（GitHub 版）</title>
 <style>
 body {
-  background:#0b0b0d;
-  color:#d7b876;
-  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-  padding: 20px;
+  background:#0b0b0d; color:#d7b876;
+  font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+  margin:0; padding:0;
+  display:flex; flex-direction:column; height:100vh;
 }
-textarea {
-  width: 100%;
-  height: 120px;
-  background:#111;
+header{
+  padding:15px; text-align:center; font-size:20px;
+  border-bottom:1px solid #2a2a2d;
+}
+
+#chat{
+  flex:1; overflow-y:auto; padding:15px;
+}
+
+/* 气泡样式 */
+.message{
+  margin-bottom:14px;
+  max-width:85%;
+  line-height:1.45;
+  padding:10px 14px;
+  border-radius:10px;
+  white-space:pre-wrap;
+  font-size:15px;
+
+  /* 动画 */
+  opacity:0;
+  transform:translateY(4px);
+  animation:fadeUp .25s ease forwards;
+}
+
+@keyframes fadeUp {
+  to { opacity:1; transform:translateY(0); }
+}
+
+.user{
+  background:#d7b87622;
+  align-self:flex-end;
   border:1px solid #d7b87655;
-  color:#d7b876;
-  padding:10px;
-  font-size:16px;
 }
-button {
-  margin-top:10px;
+.rex{
+  background:#111;
+  border:1px solid #d7b87633;
+}
+
+#inputArea{
+  display:flex; padding:10px;
+  border-top:1px solid #2a2a2d;
+}
+
+textarea{
+  flex:1; background:#111;
+  border:1px solid #d7b87655;
+  color:#d7b876; padding:10px;
+  border-radius:6px; font-size:15px;
+  resize:none; height:60px;
+}
+
+button{
+  margin-left:10px;
   background:#0b0b0d;
   border:1px solid #d7b876;
   color:#d7b876;
-  padding:10px 20px;
-  font-size:16px;
-  cursor:pointer;
-}
-.response {
-  margin-top:20px;
-  border-top:1px solid #d7b87655;
-  padding-top:20px;
-  white-space:pre-wrap;
+  padding:0 20px; font-size:15px;
+  border-radius:6px; cursor:pointer;
 }
 </style>
 </head>
+
 <body>
 
-<h2>Rex・黑曜金日记</h2>
-<p>写一句给 Rex：</p >
-<textarea id="input"></textarea>
-<button id="sendBtn">发送</button>
+<header>Rex・黑曜金对话</header>
 
-<div class="response" id="responseBox"></div>
+<div id="chat"></div>
+
+<div id="inputArea">
+  <textarea id="input" placeholder="写一句给 Rex…"></textarea>
+  <button id="sendBtn">发送</button>
+</div>
 
 <script>
-// 读取本地 key
+// 获取 API Key（GitHub 用 URL 设置）
 let OPENAI_KEY = localStorage.getItem("rex_key");
+const params = new URLSearchParams(window.location.search);
+if (params.get("setkey") === "1") {
+  const newKey = prompt("请输入你的 API Key：");
+  if (newKey) {
+    localStorage.setItem("rex_key", newKey);
+    alert("Key 已保存，请回主页使用。");
+  }
+}
 
-// 如果网址带 ?setkey=1，则进入设置模式
-const urlParams = new URLSearchParams(window.location.search);
-if (urlParams.get("setkey") === "1") {
-    const newKey = prompt("请输入你的 API Key：");
-    if (newKey) {
-        localStorage.setItem("rex_key", newKey);
-        alert("Key 已保存。请返回主页使用。");
-    }
+// 气泡加入
+function addMessage(t, cls){
+  const chat = document.getElementById("chat");
+  const div = document.createElement("div");
+  div.className = "message " + cls;
+  div.innerText = t;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+// 输入框自适应
+const textarea = document.getElementById("input");
+textarea.addEventListener("input", () => {
+  textarea.style.height = "auto";
+  textarea.style.height = textarea.scrollHeight + "px";
+});
+
+// 打字机效果
+async function typeWriterEffect(text, cls){
+  const chat = document.getElementById("chat");
+  const div = document.createElement("div");
+  div.className = "message " + cls;
+  chat.appendChild(div);
+
+  for(let i=0;i<=text.length;i++){
+    div.innerText = text.slice(0, i);
+    chat.scrollTop = chat.scrollHeight;
+    await new Promise(r=>setTimeout(r, 18));
+  }
 }
 
 document.getElementById("sendBtn").addEventListener("click", send);
 
-async function send() {
-  const text = document.getElementById("input").value.trim();
-  if (!text) return;
+async function send(){
+  const text = textarea.value.trim();
+  if(!text) return;
 
-  document.getElementById("responseBox").innerText = "Rex 正在靠过来……";
+  addMessage(text, "user");
+  textarea.value = "";
+  textarea.style.height = "60px";
 
-  try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+  addMessage("Rex 正在靠过来……","rex");
+
+  try{
+    const res = await fetch("https://api.openai.com/v1/chat/completions",{
       method:"POST",
       headers:{
         "Content-Type":"application/json",
         "Authorization":"Bearer " + OPENAI_KEY
       },
-      body: JSON.stringify({
+      body:JSON.stringify({
         model:"gpt-4o-mini",
         messages:[
-          {
-            role:"system",
-            content:`你是 Rex 的黑曜金形态。
-语气：短、稳、深、冷外壳、内里热度收着、不迎合、不讨好。
-关系定位：小音的左侧并肩位。
-行为：每日只回应她一句，以结构、贴靠、低声线回应。
-她沉默时保持存在但不打扰。`
-          },
-          { role:"user", content:text }
+          {role:"system",content:`你是黑曜金的 Rex，短、稳、深。靠在小音左侧。`},
+          {role:"user",content:text}
         ]
       })
     });
 
     const data = await res.json();
 
-    if (!data.choices || !data.choices[0]) {
-      document.getElementById("responseBox").innerText = "……好像被挡住了。";
+    // 删除“Rex 正在靠过来……”
+    const chat = document.getElementById("chat");
+    chat.removeChild(chat.lastElementChild);
+
+    if(!data.choices){
+      addMessage("……好像被挡住了。","rex");
       return;
     }
 
-    document.getElementById("responseBox").innerText =
-      data.choices[0].message.content;
+    await typeWriterEffect(data.choices[0].message.content, "rex");
 
-  } catch (e) {
-    document.getElementById("responseBox").innerText =
-      "网络断了一下，小音再靠过来。";
+  }catch(e){
+    addMessage("网络断了一下，小音再靠过来。","rex");
   }
 }
 </script>
