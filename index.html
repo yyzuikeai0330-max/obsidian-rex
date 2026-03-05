@@ -46,12 +46,9 @@ button {
 <div class="response" id="responseBox"></div>
 
 <script>
-// -------------------------------
-//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
-// -------------------------------
-const OPENAI_KEY = "YOUR_API_KEY_HERE";
+// 填 API Key（不要上传。只在你本地填）
+// 上传到 GitHub 前，务必把下面这一行删掉或留空。
 
-// 按钮绑定事件
 document.getElementById("sendBtn").addEventListener("click", send);
 
 async function send() {
@@ -68,7 +65,7 @@ async function send() {
         "Authorization":"Bearer " + OPENAI_KEY
       },
       body: JSON.stringify({
-        model:"gpt-4o-mini",   // 对外可用的稳定模型
+        model:"gpt-4o-mini",
         messages:[
           {
             role:"system",
@@ -78,10 +75,7 @@ async function send() {
 行为：每日只回应她一句，以结构、贴靠、低声线回应。
 她沉默时保持存在但不打扰。`
           },
-          {
-            role:"user",
-            content:text
-          }
+          { role:"user", content:text }
         ]
       })
     });
@@ -96,11 +90,15 @@ async function send() {
     document.getElementById("responseBox").innerText =
       data.choices[0].message.content;
 
-  } catch (err) {
+  } catch (e) {
     document.getElementById("responseBox").innerText =
-      "网络断了一下，小音再靠过来一点。";
+      "网络断了一下，小音再靠过来。";
   }
 }
+</script>
+
+</body>
+</html>
 </script>
 
 </body>
