@@ -46,8 +46,18 @@ button {
 <div class="response" id="responseBox"></div>
 
 <script>
+// 读取本地 key
 let OPENAI_KEY = localStorage.getItem("rex_key");
 
+// 如果网址带 ?setkey=1，则进入设置模式
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get("setkey") === "1") {
+    const newKey = prompt("请输入你的 API Key：");
+    if (newKey) {
+        localStorage.setItem("rex_key", newKey);
+        alert("Key 已保存。请返回主页使用。");
+    }
+}
 document.getElementById("sendBtn").addEventListener("click", send);
 
 async function send() {
