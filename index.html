@@ -46,8 +46,7 @@ button {
 <div class="response" id="responseBox"></div>
 
 <script>
-// 填 API Key（不要上传。只在你本地填）
-// 上传到 GitHub 前，务必把下面这一行删掉或留空。
+let OPENAI_KEY = localStorage.getItem("rex_key");
 
 document.getElementById("sendBtn").addEventListener("click", send);
 
